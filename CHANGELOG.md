@@ -8,7 +8,6 @@
 - Provide unique tool id when parsing tool calls for models that don't support native tool usage.
 - Fix bug that prevented `epoch_reducer` from being used in eval-retry.
 - Fix bug that prevented eval() level `epoch` from overriding task level `epoch`. 
-- Fix `inspect info log-types` error 
 
 ## v0.3.28 (14 September 2024)
 
