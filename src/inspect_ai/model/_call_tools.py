@@ -16,6 +16,7 @@ from typing import (
 
 from jsonschema import Draft7Validator
 from pydantic import BaseModel
+from rich.console import Console
 
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.error import exception_message
@@ -155,6 +156,22 @@ class ToolDef:
     approval_function: Callable[[ToolCall, Any], None] | None = None
     """Function to call to approve tool call before execution."""
 
+def prompt_for_approval(console: Console, call: ToolCall, tool_def: ToolDef, approval_function: Callable[..., ApprovalResult]) -> ApprovalResult:
+    console.print(f"[bold]Approval Required for Tool: {call.function}[/bold]")
+    console.print(f"Tool Description: {tool_def.description}")
+    console.print(f"Arguments: {call.arguments}")
+    console.print(f"\nApproval Function: {approval_function.__name__}")
+    console.print(f"Approval Result: ESCALATE")
+    console.print("\nDo you want to approve this action?")
+    user_input = console.input("Please enter [green]Yes[/green] or [red]No[/red]: ")
+    
+    if user_input.lower() == "yes":
+        console.print("[green]Action Approved[/green]")
+        return ApprovalResult.APPROVE
+    else:
+        console.print("[red]Action Rejected[/red]")
+        return ApprovalResult.REJECT
+
 
 async def call_tool(tools: list[ToolDef], call: ToolCall) -> Any:
     # if there was an error parsing the ToolCall, raise that
@@ -183,19 +200,12 @@ async def call_tool(tools: list[ToolDef], call: ToolCall) -> Any:
         elif approval_result == ApprovalResult.ESCALATE:
             # TODO Implement more complex escalation logic here
             with input_screen() as console:
-                console.print("Do you want to approve the action?")
-                user_input = console.input("Please enter Yes or No:")
-                if user_input.lower() == "yes":
-                    approval_result = ApprovalResult.APPROVE
-                else:
-                    approval_result = ApprovalResult.REJECT
-                    
+                approval_result = prompt_for_approval(console, call, tool_def, approval_function)
         elif approval_result == ApprovalResult.APPROVE:
             pass
         else:
             raise ValueError(f"Invalid approval result: {approval_result}")
-            
-
+    
     # call the tool
     try:
         # get arguments (with creation of dataclasses, pydantic objects, etc.)
