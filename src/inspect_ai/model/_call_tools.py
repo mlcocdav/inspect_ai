@@ -23,13 +23,15 @@ from inspect_ai._util.registry import registry_info
 from inspect_ai.tool import Tool, ToolCall, ToolError, ToolInfo
 from inspect_ai.tool._tool import TOOL_PROMPT, ToolParsingError
 from inspect_ai.tool._tool_call import ToolCallError
+from inspect_ai.util._approver import ApprovalFunction, ApprovalResult
 from inspect_ai.tool._tool_info import (
     ToolParams,
     parse_docstring,
     parse_tool_info,
 )
+from inspect_ai.util._console import input_screen
 from inspect_ai.tool._tool_with import tool_description
-
+from inspect_ai.util import input_screen
 from ._chat_message import ChatMessageAssistant, ChatMessageTool
 
 
@@ -149,6 +151,9 @@ class ToolDef:
 
     tool: Callable[..., Any]
     """Callable to execute tool."""
+    
+    approval_function: Callable[[ToolCall, Any], None] | None = None
+    """Function to call to approve tool call before execution."""
 
 
 async def call_tool(tools: list[ToolDef], call: ToolCall) -> Any:
@@ -165,6 +170,31 @@ async def call_tool(tools: list[ToolDef], call: ToolCall) -> Any:
     validation_errors = validate_tool_input(call.arguments, tool_def.parameters)
     if validation_errors:
         raise ToolParsingError(validation_errors)
+    
+    # Call the approval function
+    approval_function = tool_def.approval_function
+    if approval_function:
+        approval_result = approval_function(call, tool_def.tool)
+        if approval_result == ApprovalResult.REJECT:
+            return f"Tool {call.function} rejected"
+        elif approval_result == ApprovalResult.BLOCK:
+            # TODO: Terminate the full eval loop
+            return f"Tool {call.function} blocked"
+        elif approval_result == ApprovalResult.ESCALATE:
+            # TODO Implement more complex escalation logic here
+            with input_screen() as console:
+                console.print("Do you want to approve the action?")
+                user_input = console.input("Please enter Yes or No:")
+                if user_input.lower() == "yes":
+                    approval_result = ApprovalResult.APPROVE
+                else:
+                    approval_result = ApprovalResult.REJECT
+                    
+        elif approval_result == ApprovalResult.APPROVE:
+            pass
+        else:
+            raise ValueError(f"Invalid approval result: {approval_result}")
+            
 
     # call the tool
     try:
@@ -247,12 +277,16 @@ def tool_def(tool: Tool) -> ToolDef:
             if key in tool_info.parameters.properties.keys():
                 tool_info.parameters.properties[key].description = description
 
+    # get approval function from metadata
+    approval_function = registry_info(tool).metadata.get("approval_function")
+
     # build tool def
     return ToolDef(
         name=name,
         description=tool_info.description,
         parameters=tool_info.parameters,
         tool=tool,
+        approval_function=approval_function
     )
 
 

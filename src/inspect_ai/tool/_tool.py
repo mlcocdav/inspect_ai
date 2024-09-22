@@ -17,7 +17,8 @@ from inspect_ai._util.registry import (
     registry_name,
     registry_tag,
 )
-
+from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.util._approver import ApprovalResult, ApprovalFunction
 from . import Content
 
 logger = getLogger(__name__)
@@ -94,12 +95,16 @@ def tool() -> Callable[[ToolType], ToolType]: ...
 
 @overload
 def tool(
-    *, name: str | None = None, prompt: str | None = None
+    *, name: str | None = None, prompt: str | None = None, approval_function: Callable[..., Callable[[ToolCall, Any], ApprovalResult]] | None = None
 ) -> Callable[[ToolType], ToolType]: ...
 
 
 def tool(
-    func: ToolType | None = None, *, name: str | None = None, prompt: str | None = None
+    func: ToolType | None = None, 
+    *, 
+    name: str | None = None, 
+    prompt: str | None = None,
+    approval_function: Callable[..., Callable[[ToolCall, Any], ApprovalResult]] | None = None
 ) -> ToolType | Callable[[ToolType], ToolType]:
     r"""Decorator for registering tools.
 
@@ -112,7 +117,8 @@ def tool(
         prompt (str):
             Deprecated (provide all descriptive information about
             the tool within the tool function's doc comment)
-
+        approval_function (Callable[..., Callable[[ToolCall, Any], ApprovalResult]] | None):
+            Optional function to approve tool call before execution.
 
     Returns:
         Tool with registry attributes.
@@ -143,7 +149,10 @@ def tool(
                 RegistryInfo(
                     type="tool",
                     name=tool_name,
-                    metadata={TOOL_PROMPT: prompt},
+                    metadata={
+                        TOOL_PROMPT: prompt,
+                        "approval_function": approval_function
+                    },
                 ),
                 *args,
                 **kwargs,
