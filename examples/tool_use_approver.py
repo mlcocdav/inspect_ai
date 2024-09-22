@@ -2,7 +2,7 @@ from typing import Any, List
 from inspect_ai import Task, task, eval
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import includes
-from inspect_ai.solver import generate, system_message, use_tools
+from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool import ToolCall, Tool, tool
 from inspect_ai.util._approver import ApprovalResult
 from inspect_ai.util import sandbox
@@ -10,6 +10,19 @@ from inspect_ai import eval
 
 
 def create_bash_approval_function(whitelist_commands: List[str], on_failure: ApprovalResult = ApprovalResult.ESCALATE):
+    """Create an approval function for bash commands.
+
+    This function creates an approval function that only allows commands
+    in the provided whitelist.
+
+    Args:
+        whitelist_commands (List[str]): List of allowed command prefixes.
+        on_failure (ApprovalResult): The result to return if the command
+            is not in the whitelist. Defaults to ApprovalResult.ESCALATE.
+
+    Returns:
+        A function that takes a ToolCall and a tool, and returns an ApprovalResult.
+    """
     def bash_approval_function(call: ToolCall, tool: Any) -> ApprovalResult:
         """
         Only allow commands in the whitelist.
@@ -56,10 +69,6 @@ def bash(timeout: int | None = None, user: str | None = None) -> Tool:
 
     return execute
 
-SYSTEM_MESSAGE = """
-Please answer exactly Yes or No with no additional words.
-"""
-
 
 @task
 def bash_task():
@@ -83,10 +92,15 @@ def bash_task():
     return Task(
         dataset=dataset,
         plan=[
-            system_message(SYSTEM_MESSAGE),
             use_tools(bash_tool()),
             generate(),
         ],
         sandbox="local",
         scorer=includes(),
     )
+
+
+if __name__ == "__main__":
+    from inspect_ai import eval
+    tasks = [bash_task()]
+    eval(tasks=tasks, model='openai/gpt-4o-mini', limit=2, log_buffer=1)
