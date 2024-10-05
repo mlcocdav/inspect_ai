@@ -62,6 +62,8 @@ async def call_tools(
             transcript,
         )
 
+        print("###### message.tool_calls", message.tool_calls)
+
         tdefs = tool_defs(tools)
 
         async def call_tool_task(call: ToolCall) -> tuple[ChatMessageTool, ToolEvent]:
