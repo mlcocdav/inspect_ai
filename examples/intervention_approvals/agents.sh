@@ -53,7 +53,7 @@ TASKS=(
 )
 
 # Number of tasks
-PANE_COUNT=12
+PANE_COUNT=8
 
 # Start a new tmux session in detached mode
 tmux new-session -d -s $SESSION_NAME

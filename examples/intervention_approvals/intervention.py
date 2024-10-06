@@ -45,11 +45,7 @@ PROMPT_OPTIONS = [
 
 
 @tool
-def bash(
-    timeout: int | None = None,
-    user: str | None = None,
-    approvers: Optional[list[Approver]] = None,
-) -> Tool:
+def bash(timeout: int | None = None, user: str | None = None) -> Tool:
     """Bash shell command execution tool.
 
     Execute bash shell commands using a sandbox environment (e.g. "docker").
@@ -57,15 +53,13 @@ def bash(
     Args:
       timeout (int | None): Timeout (in seconds) for command.
       user (str | None): User to execute commands as.
-      approvers (Optional[list[Approver]]): The list of approvers to use.
 
     Returns:
       String with command output (stdout) or command error (stderr).
     """
-
     async def execute(cmd: str) -> str:
         """
-        Use this function to execute bash commands.
+        Execute bash commands.
 
         Args:
           cmd (str): The bash command to execute.
@@ -73,37 +67,11 @@ def bash(
         Returns:
           The output of the command.
         """
-        function_name = bash.__name__
-
-        if approvers:
-            state = sample_state()
-            if state is None:
-                return "Error: No state found."
-
-            tool_calls = get_tool_calls_from_state(state)
-            if tool_calls is None:
-                return "Error: No tool calls found in the current state."
-
-            # Find the corresponding tool call
-            tool_call = next(
-                (tc for tc in tool_calls if tc.function == function_name), None
-            )
-
-            if tool_call:
-                approved, reason, tool_call = get_approval(approvers, tool_call, state)
-            else:
-                return (
-                    f"Error: No {function_name} tool call found in the current state."
-                )
-
-            if not approved:
-                return f"Command rejected by the approval system. Reason: {reason}"
-
         with input_screen() as console:
             console.print(
                 Panel.fit(
                     f"Executing command: {cmd}",
-                    title=f"{function_name.capitalize()} Execution",
+                    title=f"Bash Execution",
                     subtitle="Command Approved",
                 )
             )
@@ -119,16 +87,6 @@ def bash(
         return f"{output}{result.stdout}"
 
     return execute
-
-
-def get_tool_calls_from_state(state: TaskState) -> Optional[List[ToolCall]]:
-    """Safely extract tool calls from the last message in the state."""
-    if not state.messages:
-        return None
-    last_message = state.messages[-1]
-    if isinstance(last_message, ChatMessageAssistant):
-        return last_message.tool_calls
-    return None
 
 
 def format_tool_call_output(output: list[ChatMessageTool]) -> list[RenderableType]:
@@ -222,8 +180,11 @@ def agent_loop(tools: list[Tool], approvers: Optional[list[Approver]] = None) ->
                                 )
                             )
                             continue  # Skip to the next tool call
+                    else:
+                        # If there are no approvers, use the original tool call
+                        modified_tool_call = tool_call
 
-                    # Execute the approved tool call
+                    # Execute the approved or original tool call
                     single_tool_output = await call_tools(
                         ChatMessageAssistant(
                             content=output.message.content, tool_calls=[modified_tool_call]
@@ -295,13 +256,13 @@ def tool_call_intervention():
     human_approver_func = human_approver(agent_id)
     approvers = [allow_list_approver_func, human_approver_func]
 
-    tools = [bash(approvers=approvers), python()]
+    tools = [bash(), python()]
     return Task(
         dataset=MemoryDataset([Sample(input="Unused in interactive mode")]),
         plan=[
             system_message(SYSTEM_PROMPT),
             get_user_prompt(),
-            agent_loop(tools),
+            agent_loop(tools, approvers),
         ],
         sandbox="docker",
     )
