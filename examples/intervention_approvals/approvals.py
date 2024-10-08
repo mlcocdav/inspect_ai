@@ -171,6 +171,8 @@ def human_approver(agent_id: str) -> Approver:
         # Submit the approval request
         response = requests.post("http://localhost:8080/api/review", json=request)
 
+        print(request)
+
         if response.status_code != 200:
             return Approval(
                 decision="escalate",
