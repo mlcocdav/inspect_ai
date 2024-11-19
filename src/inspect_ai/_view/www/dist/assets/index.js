@@ -7757,6 +7757,7 @@ const ApplicationIcons = {
   error: "bi bi-exclamation-circle",
   "expand-all": "bi bi-arrows-expand",
   "expand-down": "bi bi-chevron-down",
+  fork: "bi bi-signpost-split",
   info: "bi bi-info-circle",
   input: "bi bi-terminal",
   inspect: "bi bi-gear",
@@ -15892,9 +15893,10 @@ const SubtaskEventView = ({
   storeManager,
   depth
 }) => {
+  const type = event.type === "fork" ? "Fork" : "Subtask";
   return m$1`
-    <${EventPanel} id=${id} title="Subtask: ${event.name}" icon=${ApplicationIcons.subtask} style=${style}>
-      <${SubtaskSummary} name="Summary"  input=${event.input} result=${event.result}/>
+    <${EventPanel} id=${id} title="${type}: ${event.name}" style=${style} collapse=${false}>
+      ${event.type === "fork" ? "" : m$1`<${SubtaskSummary} name="Summary" input=${event.input} result=${event.result} />`}
       ${event.events.length > 0 ? m$1`<${TranscriptView}
               id="${id}-subtask"
               name="Transcript"
@@ -20816,7 +20818,9 @@ function simpleHttpAPI(logInfo) {
   };
 }
 async function fetchFile(url, parse3, handleError) {
-  const response = await fetch(`${url}`, { method: "GET" });
+  const safe_url = encodePathParts(url);
+  const response = await fetch(`${safe_url}`, { method: "GET" });
+  console.log({ response });
   if (response.ok) {
     const text = await response.text();
     return {
@@ -20892,6 +20896,20 @@ const log_file_cache = (log_file) => {
     }
   };
 };
+function encodePathParts(url) {
+  if (!url) return url;
+  try {
+    const fullUrl = new URL(url);
+    fullUrl.pathname = fullUrl.pathname.split("/").map(
+      (segment) => segment ? encodeURIComponent(decodeURIComponent(segment)) : ""
+    ).join("/");
+    return fullUrl.toString();
+  } catch {
+    return url.split("/").map(
+      (segment) => segment ? encodeURIComponent(decodeURIComponent(segment)) : ""
+    ).join("/");
+  }
+}
 const resolveApi = () => {
   if (window.acquireVsCodeApi) {
     return vscodeApi$1;
